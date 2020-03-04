@@ -1,5 +1,27 @@
 import requests 
 import json
+import threading
+
+class retrieveThread(threading.Thread):
+    def __init__(self, TAG):
+        threading.Thread.__init__(self)
+        self.curBest = 0
+        self.tag = TAG
+
+    def run(self):
+        request = requests.get(url = URL_PLAYER.replace("{TAG}", self.tag), params = PARAMS) 
+        playerInfo = request.json()
+        if "previousSeason" in playerInfo["leagueStatistics"]:
+            self.curBest = playerInfo["leagueStatistics"]["previousSeason"]["trophies"]
+        points = ((self.curBest-4000)*0.75)+4000  
+        if(points > 5800):
+            points = 5800
+        bestSeasonTrophies = points
+        if "bestTrophies" in playerInfo["leagueStatistics"]["currentSeason"]:
+            bestSeasonTrophies = playerInfo["leagueStatistics"]["currentSeason"]["bestTrophies"]
+        if (self.curBest<4000):
+            points = bestSeasonTrophies
+        print("%s--%d--%d--%d"%(playerInfo["name"], bestSeasonTrophies, points, bestSeasonTrophies-points))
 
 PLAYER_ARRAY = []
 START_DATE = "14/05/2019"
@@ -12,20 +34,15 @@ KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03Z
 URL = URL.replace("{CLAN_KEY}", CLAN_KEY)
 URL = URL.replace("{RESOURCE}", RESOURCE)
 
+threadLock = threading.Lock()
+threads = []
 PARAMS = {'Authorization':'Bearer '+KEY, 'Accept':'application/json'} 
 r = requests.get(url = URL, params = PARAMS)   
 data = r.json()
 for item in data["items"]:
     TAG = item["tag"].replace("#", "%23")
-    request = requests.get(url = URL_PLAYER.replace("{TAG}", TAG), params = PARAMS) 
-    playerInfo = request.json()
-    curBest = 0
-    if "previousSeason" in playerInfo["leagueStatistics"]:
-        curBest = playerInfo["leagueStatistics"]["previousSeason"]["bestTrophies"]
-    points = (curBest-4000)*0.75+4000
-    if(points > 5800):
-        points = 5800
-    bestSeasonTrophies = points
-    if "bestTrophies" in playerInfo["leagueStatistics"]["currentSeason"]:
-        bestSeasonTrophies = playerInfo["leagueStatistics"]["currentSeason"]["bestTrophies"]
-    print("%s\t%d\t%d\t%d"%(playerInfo["name"], bestSeasonTrophies, points, bestSeasonTrophies-points))
+    try:
+        thread = retrieveThread(TAG).start()
+        threads.append(thread)
+    except:
+        print ("Error: unable to start thread")
